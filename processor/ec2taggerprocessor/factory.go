@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	typeStr = "ec2tagger"
+	typeStr   = "simple"
 	stability = component.StabilityLevelStable
 )
 
@@ -27,11 +27,11 @@ func createDefaultConfig() config.Processor {
 	}
 }
 
-func NewFactory() component.ProcessorFactory{
+func NewFactory() component.ProcessorFactory {
 	return component.NewProcessorFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithMetricsProcessor(createMetricsProcessor, stability))	
+		component.WithMetricsProcessor(createMetricsProcessor, stability))
 }
 
 func createMetricsProcessor(
@@ -54,4 +54,3 @@ func createMetricsProcessor(
 		processorhelper.WithCapabilities(processorCapabilities),
 		processorhelper.WithShutdown(metricsProcessor.shutdown))
 }
-

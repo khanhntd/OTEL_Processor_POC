@@ -1,0 +1,20 @@
+receivers:
+  hostmetrics:
+    scrapers:
+      cpu:
+
+processors:
+  ec2tagger:
+exporters:
+  logging:
+    loglevel: debug
+  awsemf:
+    namespace: TelegrafOtelPoc
+    region: us-east-1
+
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics]
+      processors: [ec2tagger]
+      exporters: [logging, awsemf]
