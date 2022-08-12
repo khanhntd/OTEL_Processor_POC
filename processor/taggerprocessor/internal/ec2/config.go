@@ -1,4 +1,4 @@
-package ec2 // import "github.com/open-telemetry/opentelemetry-collector-contrib/processor/taggerprocessor/internal/aws/ec2metadata"
+package ec2
 
 // Config defines user-specified configurations unique to the EC2 detector
 type Config struct {
