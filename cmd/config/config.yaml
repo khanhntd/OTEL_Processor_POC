@@ -4,18 +4,19 @@ receivers:
       cpu:
 
 processors:
-  ec2tagger:
+  tagger:
+    detectors: [ec2metadata]
 exporters:
   logging:
     loglevel: debug
   awsemf:
-    namespace: OTELProcessorMigration
+    namespace: OTELProcessorMigration8
     region: us-west-2
-    log_group_name: '/aws/ec2/OTELProcessorMigration'
+    log_group_name: '/aws/ec2metadata/OTELProcessorMigration1'
 
 service:
   pipelines:
     metrics:
       receivers: [hostmetrics]
-      processors: [ec2tagger]
+      processors: [tagger]
       exporters: [logging, awsemf]
