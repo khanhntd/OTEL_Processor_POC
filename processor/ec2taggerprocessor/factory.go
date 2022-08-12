@@ -1,4 +1,4 @@
-package ec2tagger
+package ec2taggerprocessor
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	typeStr   = "simple"
+	typeStr   = "ec2tagger"
 	stability = component.StabilityLevelStable
 )
 

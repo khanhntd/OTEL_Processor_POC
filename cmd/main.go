@@ -15,6 +15,7 @@ import (
 	"log"
 	"path/filepath"
 	"poc/processor/ec2taggerprocessor"
+	"poc/processor/resourcedetectionprocessor"
 )
 
 func main() {
@@ -57,6 +58,7 @@ func Components() (component.Factories, error) {
 
 	processors, err := component.MakeProcessorFactoryMap(
 		ec2taggerprocessor.NewFactory(),
+		resourcedetectionprocessor.NewFactory(),
 	)
 	errs = multierr.Append(errs, err)
 
