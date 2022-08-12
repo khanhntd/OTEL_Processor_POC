@@ -18,5 +18,5 @@ service:
   pipelines:
     metrics:
       receivers: [hostmetrics]
-      processors: [tagger]
+      processors: [taggerprocessor]
       exporters: [logging, awsemf]

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	ec2provider "poc/internal/ec2metadata"
-	"poc/processor/tagger/internal"
+	"poc/processor/taggerprocessor/internal"
 )
 
 const (

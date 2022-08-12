@@ -14,8 +14,8 @@ import (
 	"go.uber.org/multierr"
 	"log"
 	"path/filepath"
-	"poc/processor/ec2taggerprocessor"
-	"poc/processor/tagger"
+	"poc/processor/simpleprocessor"
+	"poc/processor/taggerprocessor"
 )
 
 func main() {
@@ -57,8 +57,8 @@ func Components() (component.Factories, error) {
 	errs = multierr.Append(errs, err)
 
 	processors, err := component.MakeProcessorFactoryMap(
-		ec2taggerprocessor.NewFactory(),
-		tagger.NewFactory(),
+		simpleprocessor.NewFactory(),
+		taggerprocessor.NewFactory(),
 	)
 	errs = multierr.Append(errs, err)
 

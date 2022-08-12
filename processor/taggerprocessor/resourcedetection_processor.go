@@ -1,4 +1,4 @@
-package tagger
+package taggerprocessor
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"poc/processor/tagger/internal"
+	"poc/processor/taggerprocessor/internal"
 )
 
 type resourceDetectionProcessor struct {

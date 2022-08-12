@@ -1,4 +1,4 @@
-package ec2taggerprocessor
+package simpleprocessor
 
 const (
 	mdKeyInstanceId   = "InstanceId"

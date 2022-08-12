@@ -1,4 +1,4 @@
-package tagger
+package taggerprocessor
 
 import (
 	"go.opentelemetry.io/collector/config"

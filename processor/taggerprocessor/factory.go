@@ -1,4 +1,4 @@
-package tagger
+package taggerprocessor
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor/processorhelper"
 
-	"poc/processor/tagger/internal"
-	"poc/processor/tagger/internal/ec2"
+	"poc/processor/taggerprocessor/internal"
+	"poc/processor/taggerprocessor/internal/ec2"
 )
 
 const (
 	// The value of "type" key in configuration.
-	typeStr = "tagger"
+	typeStr = "taggerprocessor"
 	// The stability level of the processor.
 	stability = component.StabilityLevelBeta
 )
