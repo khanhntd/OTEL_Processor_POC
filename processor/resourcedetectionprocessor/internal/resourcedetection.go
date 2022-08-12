@@ -40,7 +40,7 @@ type ResourceDetectorConfig interface {
 	GetConfigFromType(DetectorType) DetectorConfig
 }
 
-type DetectorFactory func(component.ProcessorCreateSettings, DetectorConfig) (Detector, error)
+type DetectorFactory func(component.ProcessorCreateSettings) (Detector, error)
 
 type ResourceProviderFactory struct {
 	// detectors holds all possible detector types.
@@ -53,13 +53,18 @@ func NewProviderFactory(detectors map[DetectorType]DetectorFactory) *ResourcePro
 
 func (f *ResourceProviderFactory) CreateResourceProvider(
 	params component.ProcessorCreateSettings,
-	timeout time.Duration) (*ResourceProvider, error) {
+	timeout time.Duration,
+	detectorTypes ...DetectorType) (*ResourceProvider, error) {
+	detectors, err := f.getDetectors(params, detectorTypes)
+	if err != nil {
+		return nil, err
+	}
 
-	provider := NewResourceProvider(params.Logger, timeout)
+	provider := NewResourceProvider(params.Logger, timeout, detectors...)
 	return provider, nil
 }
 
-func (f *ResourceProviderFactory) getDetectors(params component.ProcessorCreateSettings, detectorConfigs ResourceDetectorConfig, detectorTypes []DetectorType) ([]Detector, error) {
+func (f *ResourceProviderFactory) getDetectors(params component.ProcessorCreateSettings, detectorTypes []DetectorType) ([]Detector, error) {
 	detectors := make([]Detector, 0, len(detectorTypes))
 	for _, detectorType := range detectorTypes {
 		detectorFactory, ok := f.detectors[detectorType]
@@ -67,7 +72,7 @@ func (f *ResourceProviderFactory) getDetectors(params component.ProcessorCreateS
 			return nil, fmt.Errorf("invalid detector key: %v", detectorType)
 		}
 
-		detector, err := detectorFactory(params, detectorConfigs.GetConfigFromType(detectorType))
+		detector, err := detectorFactory(params)
 		if err != nil {
 			return nil, fmt.Errorf("failed creating detector type %q: %w", detectorType, err)
 		}
@@ -84,7 +89,6 @@ type ResourceProvider struct {
 	detectors        []Detector
 	detectedResource *resourceResult
 	once             sync.Once
-	attributesToKeep map[string]struct{}
 }
 
 type resourceResult struct {
@@ -93,10 +97,11 @@ type resourceResult struct {
 	err       error
 }
 
-func NewResourceProvider(logger *zap.Logger, timeout time.Duration) *ResourceProvider {
+func NewResourceProvider(logger *zap.Logger, timeout time.Duration, detectors ...Detector) *ResourceProvider {
 	return &ResourceProvider{
-		logger:  logger,
-		timeout: timeout,
+		logger:    logger,
+		timeout:   timeout,
+		detectors: detectors,
 	}
 }
 
@@ -128,8 +133,6 @@ func (p *ResourceProvider) detectResource(ctx context.Context) {
 			MergeResource(res, r, false)
 		}
 	}
-
-	p.logger.Info("detected resource information", zap.Any("resource", AttributesToMap(res.Attributes())))
 
 	p.detectedResource.resource = res
 	p.detectedResource.schemaURL = mergedSchemaURL
@@ -182,10 +185,12 @@ func MergeSchemaURL(currentSchemaURL string, newSchemaURL string) string {
 	if currentSchemaURL == newSchemaURL {
 		return currentSchemaURL
 	}
+	// TODO: handle the case when the schema URLs are different by performing
+	// schema conversion. For now we simply ignore the new schema URL.
 	return currentSchemaURL
 }
 
-func MergeResource(to, from pcommon.Resource) {
+func MergeResource(to, from pcommon.Resource, overrideTo bool) {
 	if IsEmptyResource(from) {
 		return
 	}

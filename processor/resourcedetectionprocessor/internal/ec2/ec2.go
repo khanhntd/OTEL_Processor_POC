@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -30,20 +29,20 @@ import (
 	"go.uber.org/zap"
 
 	ec2provider "github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/aws/ec2"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal"
+	"poc/processor/resourcedetectionprocessor/internal"
 )
 
 const (
-	// TypeStr is type of detector.
-	TypeStr   = "ec2"
-	tagPrefix = "ec2.tag."
+	TypeStr                = "ec2"
+	MetadataKeyInstanceId  = "InstanceId"
+	MetadataKeyInstaceType = "InstanceType"
+	MetadataKeyImageId     = "ImageId"
 )
 
 var _ internal.Detector = (*Detector)(nil)
 
 type Detector struct {
 	metadataProvider ec2provider.Provider
-	tagKeyRegexes    []*regexp.Regexp
 	logger           *zap.Logger
 }
 
@@ -53,13 +52,9 @@ func NewDetector(set component.ProcessorCreateSettings, dcfg internal.DetectorCo
 	if err != nil {
 		return nil, err
 	}
-	tagKeyRegexes, err := compileRegexes(cfg)
-	if err != nil {
-		return nil, err
-	}
+
 	return &Detector{
 		metadataProvider: ec2provider.NewProvider(sess),
-		tagKeyRegexes:    tagKeyRegexes,
 		logger:           set.Logger,
 	}, nil
 }
@@ -76,31 +71,18 @@ func (d *Detector) Detect(ctx context.Context) (resource pcommon.Resource, schem
 		return res, "", fmt.Errorf("failed getting identity document: %w", err)
 	}
 
-	hostname, err := d.metadataProvider.Hostname(ctx)
-	if err != nil {
-		return res, "", fmt.Errorf("failed getting hostname: %w", err)
-	}
-
 	attr := res.Attributes()
-	attr.InsertString(conventions.AttributeCloudProvider, conventions.AttributeCloudProviderAWS)
-	attr.InsertString(conventions.AttributeCloudPlatform, conventions.AttributeCloudPlatformAWSEC2)
-	attr.InsertString(conventions.AttributeCloudRegion, meta.Region)
-	attr.InsertString(conventions.AttributeCloudAccountID, meta.AccountID)
-	attr.InsertString(conventions.AttributeCloudAvailabilityZone, meta.AvailabilityZone)
-	attr.InsertString(conventions.AttributeHostID, meta.InstanceID)
-	attr.InsertString(conventions.AttributeHostImageID, meta.ImageID)
-	attr.InsertString(conventions.AttributeHostType, meta.InstanceType)
-	attr.InsertString(conventions.AttributeHostName, hostname)
+	attr.InsertString(MetadataKeyInstanceId, meta.InstanceID)
+	attr.InsertString(MetadataKeyImageId, meta.ImageID)
+	attr.InsertString(MetadataKeyInstaceType, meta.InstanceType)
 
-	if len(d.tagKeyRegexes) != 0 {
-		client := getHTTPClientSettings(ctx, d.logger)
-		tags, err := connectAndFetchEc2Tags(meta.Region, meta.InstanceID, d.tagKeyRegexes, client)
-		if err != nil {
-			return res, "", fmt.Errorf("failed fetching ec2 instance tags: %w", err)
-		}
-		for key, val := range tags {
-			attr.InsertString(tagPrefix+key, val)
-		}
+	client := getHTTPClientSettings(ctx, d.logger)
+	tags, err := connectAndFetchEc2Tags(meta.Region, meta.InstanceID, client)
+	if err != nil {
+		return res, "", fmt.Errorf("failed fetching ec2 instance tags: %w", err)
+	}
+	for key, val := range tags {
+		attr.InsertString(key, val)
 	}
 
 	return res, conventions.SchemaURL, nil
@@ -115,7 +97,7 @@ func getHTTPClientSettings(ctx context.Context, logger *zap.Logger) *http.Client
 	return client
 }
 
-func connectAndFetchEc2Tags(region string, instanceID string, tagKeyRegexes []*regexp.Regexp, client *http.Client) (map[string]string, error) {
+func connectAndFetchEc2Tags(region string, instanceID string, client *http.Client) (map[string]string, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:     aws.String(region),
 		HTTPClient: client},
@@ -125,10 +107,10 @@ func connectAndFetchEc2Tags(region string, instanceID string, tagKeyRegexes []*r
 	}
 	e := ec2.New(sess)
 
-	return fetchEC2Tags(e, instanceID, tagKeyRegexes)
+	return fetchEC2Tags(e, instanceID)
 }
 
-func fetchEC2Tags(svc ec2iface.EC2API, instanceID string, tagKeyRegexes []*regexp.Regexp) (map[string]string, error) {
+func fetchEC2Tags(svc ec2iface.EC2API, instanceID string) (map[string]string, error) {
 	ec2Tags, err := svc.DescribeTags(&ec2.DescribeTagsInput{
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
@@ -142,32 +124,8 @@ func fetchEC2Tags(svc ec2iface.EC2API, instanceID string, tagKeyRegexes []*regex
 	}
 	tags := make(map[string]string)
 	for _, tag := range ec2Tags.Tags {
-		matched := regexArrayMatch(tagKeyRegexes, *tag.Key)
-		if matched {
-			tags[*tag.Key] = *tag.Value
-		}
+		tags[*tag.Key] = *tag.Value
 	}
 	return tags, nil
 }
 
-func compileRegexes(cfg Config) ([]*regexp.Regexp, error) {
-	tagRegexes := make([]*regexp.Regexp, len(cfg.Tags))
-	for i, elem := range cfg.Tags {
-		regex, err := regexp.Compile(elem)
-		if err != nil {
-			return nil, err
-		}
-		tagRegexes[i] = regex
-	}
-	return tagRegexes, nil
-}
-
-func regexArrayMatch(arr []*regexp.Regexp, val string) bool {
-	for _, elem := range arr {
-		matched := elem.MatchString(val)
-		if matched {
-			return true
-		}
-	}
-	return false
-}

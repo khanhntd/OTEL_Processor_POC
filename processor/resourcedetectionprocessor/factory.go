@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/collector/processor/processorhelper"
 
 	"poc/processor/resourcedetectionprocessor/internal"
-	"poc/processor/resourcedetectionprocessor/internal/aws/ec2"
+	"poc/processor/resourcedetectionprocessor/internal/ec2"
 )
 
 const (
@@ -62,7 +62,7 @@ func NewFactory() component.ProcessorFactory {
 	return component.NewProcessorFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithMetricsProcessor(f.createMetricsProcessor, stability)
+		component.WithMetricsProcessor(f.createMetricsProcessor, stability),
 }
 
 // Type gets the type of the Option config created by this factory.
@@ -73,7 +73,8 @@ func (*factory) Type() config.Type {
 func createDefaultConfig() config.Processor {
 	return &Config{
 		ProcessorSettings:  config.NewProcessorSettings(config.NewComponentID(typeStr)),
-		HTTPClientSettings: defaultHTTPClientSettings()
+		Detectors:          []string{},
+		HTTPClientSettings: defaultHTTPClientSettings(),
 	}
 }
 
@@ -82,7 +83,6 @@ func defaultHTTPClientSettings() confighttp.HTTPClientSettings {
 	httpClientSettings.Timeout = 5 * time.Second
 	return httpClientSettings
 }
-
 
 func (f *factory) createMetricsProcessor(
 	_ context.Context,
@@ -103,20 +103,20 @@ func (f *factory) createMetricsProcessor(
 		processorhelper.WithStart(rdp.Start))
 }
 
-
 func (f *factory) getResourceDetectionProcessor(
 	params component.ProcessorCreateSettings,
 	cfg config.Processor,
 ) (*resourceDetectionProcessor, error) {
 	oCfg := cfg.(*Config)
 
-	provider, err := f.getResourceProvider(params, cfg.ID(), oCfg.HTTPClientSettings.Timeout)
+	provider, err := f.getResourceProvider(params, cfg.ID(), oCfg.HTTPClientSettings.Timeout, oCfg.Detectors)
 	if err != nil {
 		return nil, err
 	}
 
 	return &resourceDetectionProcessor{
 		provider:           provider,
+		override:           oCfg.Override,
 		httpClientSettings: oCfg.HTTPClientSettings,
 		telemetrySettings:  params.TelemetrySettings,
 	}, nil
@@ -126,6 +126,7 @@ func (f *factory) getResourceProvider(
 	params component.ProcessorCreateSettings,
 	processorName config.ComponentID,
 	timeout time.Duration,
+	configuredDetectors []string,
 ) (*internal.ResourceProvider, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -134,7 +135,12 @@ func (f *factory) getResourceProvider(
 		return provider, nil
 	}
 
-	provider, err := f.resourceProviderFactory.CreateResourceProvider(params, timeout)
+	detectorTypes := make([]internal.DetectorType, 0, len(configuredDetectors))
+	for _, key := range configuredDetectors {
+		detectorTypes = append(detectorTypes, internal.DetectorType(strings.TrimSpace(key)))
+	}
+
+	provider, err := f.resourceProviderFactory.CreateResourceProvider(params, timeout, detectorTypes...)
 	if err != nil {
 		return nil, err
 	}

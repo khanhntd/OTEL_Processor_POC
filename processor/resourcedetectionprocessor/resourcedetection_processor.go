@@ -20,14 +20,18 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"poc/processor/resourcedetectionprocessor/internal"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal"
 )
 
 type resourceDetectionProcessor struct {
 	provider           *internal.ResourceProvider
 	resource           pcommon.Resource
 	schemaURL          string
+	override           bool
 	httpClientSettings confighttp.HTTPClientSettings
 	telemetrySettings  component.TelemetrySettings
 }
@@ -41,6 +45,18 @@ func (rdp *resourceDetectionProcessor) Start(ctx context.Context, host component
 	return err
 }
 
+// processTraces implements the ProcessTracesFunc type.
+func (rdp *resourceDetectionProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
+	rs := td.ResourceSpans()
+	for i := 0; i < rs.Len(); i++ {
+		rss := rs.At(i)
+		rss.SetSchemaUrl(internal.MergeSchemaURL(rss.SchemaUrl(), rdp.schemaURL))
+		res := rss.Resource()
+		internal.MergeResource(res, rdp.resource, rdp.override)
+	}
+	return td, nil
+}
+
 // processMetrics implements the ProcessMetricsFunc type.
 func (rdp *resourceDetectionProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
 	rm := md.ResourceMetrics()
@@ -48,7 +64,19 @@ func (rdp *resourceDetectionProcessor) processMetrics(_ context.Context, md pmet
 		rss := rm.At(i)
 		rss.SetSchemaUrl(internal.MergeSchemaURL(rss.SchemaUrl(), rdp.schemaURL))
 		res := rss.Resource()
-		internal.MergeResource(res, rdp.resource)
+		internal.MergeResource(res, rdp.resource, rdp.override)
 	}
 	return md, nil
+}
+
+// processLogs implements the ProcessLogsFunc type.
+func (rdp *resourceDetectionProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
+	rl := ld.ResourceLogs()
+	for i := 0; i < rl.Len(); i++ {
+		rss := rl.At(i)
+		rss.SetSchemaUrl(internal.MergeSchemaURL(rss.SchemaUrl(), rdp.schemaURL))
+		res := rss.Resource()
+		internal.MergeResource(res, rdp.resource, rdp.override)
+	}
+	return ld, nil
 }
