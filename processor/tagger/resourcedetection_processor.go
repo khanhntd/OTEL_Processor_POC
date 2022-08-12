@@ -1,4 +1,4 @@
-package resourcedetectionprocessor
+package tagger
 
 import (
 	"context"
@@ -6,11 +6,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"poc/processor/resourcedetectionprocessor/internal"
+	"poc/processor/tagger/internal"
 )
 
 type resourceDetectionProcessor struct {
@@ -30,38 +27,14 @@ func (rdp *resourceDetectionProcessor) Start(ctx context.Context, host component
 	return err
 }
 
-// processTraces implements the ProcessTracesFunc type.
-func (rdp *resourceDetectionProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
-	rs := td.ResourceSpans()
-	for i := 0; i < rs.Len(); i++ {
-		rss := rs.At(i)
-		rss.SetSchemaUrl(internal.MergeSchemaURL(rss.SchemaUrl(), rdp.schemaURL))
-		res := rss.Resource()
-		internal.MergeResource(res, rdp.resource)
-	}
-	return td, nil
-}
-
 // processMetrics implements the ProcessMetricsFunc type.
 func (rdp *resourceDetectionProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
-	rm := md.ResourceMetrics()
-	for i := 0; i < rm.Len(); i++ {
-		rss := rm.At(i)
-		rss.SetSchemaUrl(internal.MergeSchemaURL(rss.SchemaUrl(), rdp.schemaURL))
-		res := rss.Resource()
+	resourceMetricsSlice := md.ResourceMetrics()
+	for i := 0; i < resourceMetricsSlice.Len(); i++ {
+		rm := resourceMetricsSlice.At(i)
+		rm.SetSchemaUrl(internal.MergeSchemaURL(rm.SchemaUrl(), rdp.schemaURL))
+		res := rm.Resource()
 		internal.MergeResource(res, rdp.resource)
 	}
 	return md, nil
-}
-
-// processLogs implements the ProcessLogsFunc type.
-func (rdp *resourceDetectionProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
-	rl := ld.ResourceLogs()
-	for i := 0; i < rl.Len(); i++ {
-		rss := rl.At(i)
-		rss.SetSchemaUrl(internal.MergeSchemaURL(rss.SchemaUrl(), rdp.schemaURL))
-		res := rss.Resource()
-		internal.MergeResource(res, rdp.resource)
-	}
-	return ld, nil
 }

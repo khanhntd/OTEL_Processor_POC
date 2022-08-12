@@ -1,4 +1,4 @@
-package resourcedetectionprocessor
+package tagger
 
 import (
 	"go.opentelemetry.io/collector/config"

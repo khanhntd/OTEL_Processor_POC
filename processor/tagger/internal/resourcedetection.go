@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -72,7 +71,6 @@ type ResourceProvider struct {
 	timeout          time.Duration
 	detectors        []Detector
 	detectedResource *resourceResult
-	once             sync.Once
 }
 
 type resourceResult struct {
@@ -90,12 +88,11 @@ func NewResourceProvider(logger *zap.Logger, timeout time.Duration, detectors ..
 }
 
 func (p *ResourceProvider) Get(ctx context.Context, client *http.Client) (resource pcommon.Resource, schemaURL string, err error) {
-	p.once.Do(func() {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, client.Timeout)
-		defer cancel()
-		p.detectResource(ctx)
-	})
+
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, client.Timeout)
+	defer cancel()
+	p.detectResource(ctx)
 
 	return p.detectedResource.resource, p.detectedResource.schemaURL, p.detectedResource.err
 }
@@ -169,8 +166,6 @@ func MergeSchemaURL(currentSchemaURL string, newSchemaURL string) string {
 	if currentSchemaURL == newSchemaURL {
 		return currentSchemaURL
 	}
-	// TODO: handle the case when the schema URLs are different by performing
-	// schema conversion. For now we simply ignore the new schema URL.
 	return currentSchemaURL
 }
 

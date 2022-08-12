@@ -1,4 +1,4 @@
-package resourcedetectionprocessor
+package tagger
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor/processorhelper"
 
-	"poc/processor/resourcedetectionprocessor/internal"
-	"poc/processor/resourcedetectionprocessor/internal/ec2"
+	"poc/processor/tagger/internal"
+	"poc/processor/tagger/internal/ec2"
 )
 
 const (
 	// The value of "type" key in configuration.
-	typeStr = "resourcedetection"
+	typeStr = "tagger"
 	// The stability level of the processor.
 	stability = component.StabilityLevelBeta
 )

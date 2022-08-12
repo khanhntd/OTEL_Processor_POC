@@ -2,6 +2,7 @@ package ec2
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -14,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	ec2provider "poc/internal/ec2metadata"
-	"poc/processor/resourcedetectionprocessor/internal"
+	"poc/processor/tagger/internal"
 )
 
 const (
@@ -50,15 +51,25 @@ func (d *Detector) Detect(ctx context.Context) (resource pcommon.Resource, schem
 		return res, "", nil
 	}
 
-	//meta, err := d.metadataProvider.Get(ctx)
-	//if err != nil {
-	//	return res, "", fmt.Errorf("failed getting identity document: %w", err)
-	//}
+	meta, err := d.metadataProvider.Get(ctx)
+	if err != nil {
+		return res, "", fmt.Errorf("failed getting identity document: %w", err)
+	}
 
 	attr := res.Attributes()
-	attr.InsertString(MetadataKeyInstanceId, "testInstanceId")
-	//attr.InsertString(MetadataKeyImageId, meta.Ima)
-	//attr.InsertString(MetadataKeyInstaceType, meta.InstanceType)
+	attr.InsertString(MetadataKeyInstanceId, meta.InstanceID)
+	attr.InsertString(MetadataKeyImageId, meta.ImageID)
+	attr.InsertString(MetadataKeyInstaceType, meta.InstanceType)
+
+	client := getHTTPClientSettings(ctx, d.logger)
+	tags, err := connectAndFetchEc2TagsandEcsVolume(meta.Region, meta.InstanceID, client)
+
+	if err != nil {
+		return res, "", fmt.Errorf("failed fetching ec2 instance tags: %w", err)
+	}
+	for key, val := range tags {
+		attr.InsertString(tagPrefix+key, val)
+	}
 
 	return res, conventions.SchemaURL, nil
 }
@@ -72,7 +83,7 @@ func getHTTPClientSettings(ctx context.Context, logger *zap.Logger) *http.Client
 	return client
 }
 
-func connectAndFetchEc2Tags(region string, instanceID string, client *http.Client) (map[string]string, error) {
+func connectAndFetchEc2TagsandEcsVolume(region string, instanceID string, client *http.Client) (map[string]string, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:     aws.String(region),
 		HTTPClient: client},
@@ -82,10 +93,10 @@ func connectAndFetchEc2Tags(region string, instanceID string, client *http.Clien
 	}
 	e := ec2.New(sess)
 
-	return fetchEC2Tags(e, instanceID)
+	return fetchEC2TagsAndVolumes(e, instanceID)
 }
 
-func fetchEC2Tags(svc ec2iface.EC2API, instanceID string) (map[string]string, error) {
+func fetchEC2TagsAndVolumes(svc ec2iface.EC2API, instanceID string) (map[string]string, error) {
 	ec2Tags, err := svc.DescribeTags(&ec2.DescribeTagsInput{
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
@@ -101,5 +112,25 @@ func fetchEC2Tags(svc ec2iface.EC2API, instanceID string) (map[string]string, er
 	for _, tag := range ec2Tags.Tags {
 		tags[*tag.Key] = *tag.Value
 	}
+
+	ec2Volumes, err := svc.DescribeVolumes(&ec2.DescribeVolumesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("attachment.instance-id"),
+				Values: aws.StringSlice([]string{instanceID})
+			},
+		},
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, volume := range ec2Volumes.Volumes {
+		for _, attachment := range volume.Attachments {
+			tags[*attachment.VolumeId] = fmt.Sprintf("aws://%s/%s", *volume.AvailabilityZone, *attachment.VolumeId)
+		}
+	}
+
 	return tags, nil
 }
