@@ -62,13 +62,13 @@ func (d *Detector) Detect(ctx context.Context) (resource pcommon.Resource, schem
 	attr.InsertString(MetadataKeyInstaceType, meta.InstanceType)
 
 	client := getHTTPClientSettings(ctx, d.logger)
-	tags, err := connectAndFetchEc2TagsandEcsVolume(meta.Region, meta.InstanceID, client)
+	tagsAndVolumes, err := connectAndFetchEc2TagsandEcsVolume(meta.Region, meta.InstanceID, client)
 
 	if err != nil {
 		return res, "", fmt.Errorf("failed fetching ec2 instance tags: %w", err)
 	}
-	for key, val := range tags {
-		attr.InsertString(tagPrefix+key, val)
+	for key, val := range tagsAndVolumes {
+		attr.InsertString(key, val)
 	}
 
 	return res, conventions.SchemaURL, nil
@@ -99,28 +99,26 @@ func connectAndFetchEc2TagsandEcsVolume(region string, instanceID string, client
 func fetchEC2TagsAndVolumes(svc ec2iface.EC2API, instanceID string) (map[string]string, error) {
 	ec2Tags, err := svc.DescribeTags(&ec2.DescribeTagsInput{
 		Filters: []*ec2.Filter{{
-			Name: aws.String("resource-id"),
-			Values: []*string{
-				aws.String(instanceID),
-			},
+			Name:   aws.String("resource-id"),
+			Values: aws.StringSlice([]string{instanceID}),
 		}},
 	})
 	if err != nil {
 		return nil, err
 	}
-	tags := make(map[string]string)
+	tagsAndVolumes := make(map[string]string)
 	for _, tag := range ec2Tags.Tags {
-		tags[*tag.Key] = *tag.Value
+		tagsAndVolumes[*tag.Key] = *tag.Value
 	}
 
 	ec2Volumes, err := svc.DescribeVolumes(&ec2.DescribeVolumesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("attachment.instance-id"),
-				Values: aws.StringSlice([]string{instanceID})
+				Values: aws.StringSlice([]string{instanceID}),
 			},
 		},
-	}
+	})
 
 	if err != nil {
 		return nil, err
@@ -128,9 +126,9 @@ func fetchEC2TagsAndVolumes(svc ec2iface.EC2API, instanceID string) (map[string]
 
 	for _, volume := range ec2Volumes.Volumes {
 		for _, attachment := range volume.Attachments {
-			tags[*attachment.VolumeId] = fmt.Sprintf("aws://%s/%s", *volume.AvailabilityZone, *attachment.VolumeId)
+			tagsAndVolumes[*attachment.VolumeId] = fmt.Sprintf("aws://%s/%s", *volume.AvailabilityZone, *attachment.VolumeId)
 		}
 	}
 
-	return tags, nil
+	return tagsAndVolumes, nil
 }

@@ -3,19 +3,19 @@ package simpleprocessor
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+	ec2provider "poc/internal/ec2metadata"
 )
 
-type EC2TaggerProcessor struct {
-	logger     *zap.Logger
-	cancelFunc context.CancelFunc
-	metadata   *ec2metadata.EC2Metadata
+type SimpleProcessor struct {
+	logger           *zap.Logger
+	cancelFunc       context.CancelFunc
+	metadataProvider ec2provider.Provider
 }
 
-func newEC2TaggerProcessor(config *Config, logger *zap.Logger) *EC2TaggerProcessor {
+func newSimpleProcessor(config *Config, logger *zap.Logger) *SimpleProcessor {
 
 	sess, err := session.NewSession()
 	if err != nil {
@@ -23,27 +23,21 @@ func newEC2TaggerProcessor(config *Config, logger *zap.Logger) *EC2TaggerProcess
 	}
 
 	_, cancel := context.WithCancel(context.Background())
-	p := &EC2TaggerProcessor{
-		logger:     logger,
-		cancelFunc: cancel,
-		metadata:   ec2metadata.New(sess),
+	p := &SimpleProcessor{
+		logger:           logger,
+		cancelFunc:       cancel,
+		metadataProvider: ec2provider.NewProvider(sess),
 	}
 	return p
 }
 
-func (ec2tagger *EC2TaggerProcessor) processMetrics(ctx context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
-	var err error
+func (simple *SimpleProcessor) processMetrics(ctx context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
 	rm := md.ResourceMetrics()
 	for i := 0; i < rm.Len(); i++ {
 		res := rm.At(i).Resource()
 		attr := res.Attributes()
 
-		if _, err = ec2tagger.metadata.GetMetadataWithContext(ctx, "instance-id"); err != nil {
-			fmt.Printf("EC2 metadata unavailable %v\n", err)
-			return md, err
-		}
-
-		meta, err := ec2tagger.metadata.GetInstanceIdentityDocumentWithContext(ctx)
+		meta, err := simple.metadataProvider.Get(ctx)
 		if err != nil {
 			fmt.Printf("Failed getting identity document: %v\n", err)
 			return md, err
@@ -56,7 +50,7 @@ func (ec2tagger *EC2TaggerProcessor) processMetrics(ctx context.Context, md pmet
 	return md, nil
 }
 
-func (ctdp *EC2TaggerProcessor) shutdown(context.Context) error {
-	ctdp.cancelFunc()
+func (simple *SimpleProcessor) shutdown(context.Context) error {
+	simple.cancelFunc()
 	return nil
 }

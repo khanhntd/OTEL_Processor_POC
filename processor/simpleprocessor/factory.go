@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	typeStr   = "ec2tagger"
+	typeStr   = "simple"
 	stability = component.StabilityLevelStable
 )
 
@@ -45,7 +45,7 @@ func createMetricsProcessor(
 		return nil, fmt.Errorf("configuration parsing error")
 	}
 
-	metricsProcessor := newEC2TaggerProcessor(processorConfig, params.Logger)
+	metricsProcessor := newSimpleProcessor(processorConfig, params.Logger)
 
 	return processorhelper.NewMetricsProcessor(
 		cfg,
