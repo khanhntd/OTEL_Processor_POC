@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/multierr"
 	"log"
@@ -62,6 +63,7 @@ func Components() (component.Factories, error) {
 	processors, err := component.MakeProcessorFactoryMap(
 		simpleprocessor.NewFactory(),
 		taggerprocessor.NewFactory(),
+		batchprocessor.NewFactory(),
 	)
 	errs = multierr.Append(errs, err)
 
