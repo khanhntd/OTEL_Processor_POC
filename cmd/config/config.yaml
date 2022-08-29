@@ -1,6 +1,6 @@
 receivers:
   filelog:
-    include: [ config/log.file ]
+    include: [ /home/ec2-user/log/*.log ]
     start_at: beginning
 
 processors:
