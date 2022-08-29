@@ -1,22 +1,27 @@
 receivers:
-  hostmetrics:
-    scrapers:
-      cpu:
+  filelog:
+    include: [ config/log.file ]
+    start_at: beginning
 
 processors:
-  tagger:
-    detectors: [ec2metadata]
+  batch/logs:
+    timeout: 60s
+
 exporters:
+  awscloudwatchlogs:
+    log_group_name: "testing-logs"
+    log_stream_name: "testing-integrations-stream"
+    region: "us-west-2"
+    retry_on_failure:
+      enabled: true
+      initial_interval: 10ms
+
   logging:
     loglevel: debug
-  awsemf:
-    namespace: OTELProcessorMigration8
-    region: us-west-2
-    log_group_name: '/aws/ec2metadata/OTELProcessorMigration1'
 
 service:
   pipelines:
-    metrics:
-      receivers: [hostmetrics]
-      processors: [taggerprocessor]
-      exporters: [logging, awsemf]
+    logs:
+      receivers: [ filelog ]
+      processors: [ batch/logs ]
+      exporters: [ awscloudwatchlogs, logging ]

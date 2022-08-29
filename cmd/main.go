@@ -1,7 +1,9 @@
 package main
 
 import (
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awscloudwatchlogsexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsemfexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -53,6 +55,7 @@ func Components() (component.Factories, error) {
 
 	receivers, err := component.MakeReceiverFactoryMap(
 		hostmetricsreceiver.NewFactory(),
+		filelogreceiver.NewFactory(),
 	)
 	errs = multierr.Append(errs, err)
 
@@ -65,6 +68,7 @@ func Components() (component.Factories, error) {
 	exporters, err := component.MakeExporterFactoryMap(
 		loggingexporter.NewFactory(),
 		awsemfexporter.NewFactory(),
+		awscloudwatchlogsexporter.NewFactory(),
 	)
 	errs = multierr.Append(errs, err)
 
